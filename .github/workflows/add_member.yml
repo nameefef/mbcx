@@ -1,0 +1,54 @@
+name: Add New Member
+on:
+  workflow_dispatch:
+    inputs:
+      xhs_id:
+        description: '请输入小红书号'
+        required: true
+      join_date:
+        description: '请输入入会日期 (格式: 20231027)'
+        required: true
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Process and Append Data
+        run: |
+          # 定义变量
+          XHS_ID="${{ github.event.inputs.xhs_id }}"
+          JOIN_DATE="${{ github.event.inputs.join_date }}"
+          MEMBER_CODE="CAFF${JOIN_DATE}${XHS_ID}"
+          
+          # 使用 Python 处理 JSON 防止格式破损
+          python3 -c "
+          import json, os
+          file_path = 'data.json'
+          if not os.path.exists(file_path) or os.stat(file_path).st_size == 0:
+              data = []
+          else:
+              with open(file_path, 'r', encoding='utf-8') as f:
+                  data = json.load(f)
+          
+          # 检查是否已存在（去重）
+          if not any(item['xhs_id'] == '$XHS_ID' for item in data):
+              data.append({
+                  'xhs_id': '$XHS_ID',
+                  'date': '$JOIN_DATE',
+                  'code': '$MEMBER_CODE'
+              })
+              with open(file_path, 'w', encoding='utf-8') as f:
+                  json.dump(data, f, indent=2, ensure_ascii=False)
+          "
+          
+      - name: Commit and Push
+        run: |
+          git config --global user.name "MemberBot"
+          git config --global user.email "actions@github.com"
+          git add data.json
+          git commit -m "新增会员: ${{ github.event.inputs.xhs_id }}" || exit 0
+          git push
